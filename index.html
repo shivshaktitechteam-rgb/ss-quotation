@@ -1,0 +1,50 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100">
+  <div class="max-w-md mx-auto p-4">
+    <div class="bg-white rounded-xl shadow p-4">
+      <div class="text-xl font-bold">Shivshakti Marble & Granite</div>
+      <div class="text-sm text-gray-600">Quotation and Challan</div>
+    </div>
+
+    <div class="grid grid-cols-2 gap-3 mt-4">
+      <a href="quotation.html" class="bg-white rounded-xl shadow p-4 block">
+        <div class="text-sm text-gray-500">Create</div>
+        <div class="text-lg font-bold">Quotation</div>
+      </a>
+
+      <a href="challan.html" class="bg-white rounded-xl shadow p-4 block">
+        <div class="text-sm text-gray-500">Create</div>
+        <div class="text-lg font-bold">Challan</div>
+      </a>
+    </div>
+
+    <div class="bg-white rounded-xl shadow p-4 mt-4">
+      <div class="font-bold">Quick Search</div>
+      <div class="text-sm text-gray-600 mt-1">Open by Quotation No</div>
+      <div class="flex gap-2 mt-2">
+        <input id="qno" class="border rounded-lg p-2 w-full" placeholder="Q25-Feb-001">
+        <button onclick="openQuotation()" class="bg-black text-white rounded-lg px-4">Open</button>
+      </div>
+      <div id="msg" class="text-sm mt-2 text-red-600"></div>
+    </div>
+  </div>
+
+  <script>
+    function openQuotation() {
+      const qno = document.getElementById("qno").value.trim();
+      if (!qno) {
+        document.getElementById("msg").textContent = "Enter quotation number";
+        return;
+      }
+      window.location.href = "quotation.html?quotationNo=" + encodeURIComponent(qno);
+    }
+  </script>
+</body>
+</html>

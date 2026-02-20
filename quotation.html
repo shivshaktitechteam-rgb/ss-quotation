@@ -1,0 +1,306 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Quotation</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100">
+  <div class="max-w-md mx-auto p-4 pb-24">
+    <div class="flex items-center justify-between">
+      <a href="index.html" class="text-sm text-blue-600">Back</a>
+      <div class="text-lg font-bold">Quotation</div>
+      <div></div>
+    </div>
+
+    <div class="bg-white rounded-xl shadow p-4 mt-3">
+      <label class="text-xs text-gray-500">Quotation No</label>
+      <input id="quotationNo" class="border rounded-lg p-2 w-full mt-1" readonly>
+
+      <label class="text-xs text-gray-500 mt-3 block">Date</label>
+      <input id="quotationDate" type="date" class="border rounded-lg p-2 w-full mt-1">
+
+      <label class="text-xs text-gray-500 mt-3 block">Customer Name</label>
+      <input id="customerName" class="border rounded-lg p-2 w-full mt-1" placeholder="Customer name">
+
+      <label class="text-xs text-gray-500 mt-3 block">Mobile</label>
+      <input id="customerMobile" class="border rounded-lg p-2 w-full mt-1" placeholder="Mobile number">
+
+      <label class="text-xs text-gray-500 mt-3 block">Town</label>
+      <input id="town" class="border rounded-lg p-2 w-full mt-1" placeholder="Town">
+    </div>
+
+    <div class="bg-white rounded-xl shadow p-4 mt-3">
+      <div class="flex items-center justify-between">
+        <div class="font-bold">Items</div>
+        <button onclick="addItem()" class="bg-black text-white rounded-lg px-3 py-2 text-sm">Add</button>
+      </div>
+      <div id="items" class="mt-3 space-y-3"></div>
+    </div>
+
+    <div class="bg-white rounded-xl shadow p-4 mt-3">
+      <div class="flex justify-between text-sm">
+        <div>Total</div>
+        <div id="totalAmount">0.00</div>
+      </div>
+      <div class="flex justify-between text-sm mt-2">
+        <div>Final</div>
+        <div id="finalAmount">0.00</div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-2 mt-3">
+        <select id="discountType" class="border rounded-lg p-2" onchange="recalcFinal()">
+          <option value="flat">Flat</option>
+          <option value="percent">%</option>
+        </select>
+        <input id="specialDiscount" class="border rounded-lg p-2" type="number" step="0.01" value="0" oninput="recalcFinal()">
+      </div>
+
+      <button onclick="saveQuotation()" class="w-full bg-amber-500 text-white rounded-lg py-3 mt-3 font-bold">
+        Save Draft
+      </button>
+      <div id="msg" class="text-sm mt-2"></div>
+    </div>
+  </div>
+
+  <script src="api.js"></script>
+  <script>
+    let rawCache = [];
+    let itemId = 0;
+
+    function money(n) { return (Number(n || 0)).toFixed(2); }
+
+    async function init() {
+      document.getElementById("quotationDate").value = new Date().toISOString().slice(0,10);
+
+      // Set Quotation No (from URL or server-generated)
+      const urlParams = new URLSearchParams(window.location.search);
+      const qnoParam = urlParams.get("quotationNo");
+      if (qnoParam) {
+        document.getElementById("quotationNo").value = qnoParam;
+      } else {
+        const r = await apiGet({ action: "nextQuotationNo" });
+        if (r.ok) document.getElementById("quotationNo").value = r.data;
+      }
+
+      // Load raw list (first 200 for datalist)
+      const rr = await apiGet({ action: "raw" });
+      rawCache = rr.ok ? rr.data : [];
+
+      addItem();
+      ensureRawDatalist();
+    }
+
+    function ensureRawDatalist() {
+      if (document.getElementById("rawList")) return;
+      const dl = document.createElement("datalist");
+      dl.id = "rawList";
+      rawCache.slice(0, 500).forEach(r => {
+        const op = document.createElement("option");
+        op.value = r.name;
+        dl.appendChild(op);
+      });
+      document.body.appendChild(dl);
+    }
+
+    function addItem() {
+      itemId++;
+      const wrap = document.createElement("div");
+      wrap.className = "border rounded-lg p-3";
+      wrap.dataset.id = String(itemId);
+
+      wrap.innerHTML = `
+        <div class="flex justify-between items-center">
+          <div class="font-bold text-sm">Item</div>
+          <button class="text-red-600 text-sm" onclick="removeItem(${itemId})">Remove</button>
+        </div>
+
+        <label class="text-xs text-gray-500 mt-2 block">Product Code</label>
+        <input class="code border rounded-lg p-2 w-full mt-1" placeholder="Type code" list="rawList">
+
+        <div class="grid grid-cols-2 gap-2 mt-3">
+          <div>
+            <label class="text-xs text-gray-500 block">Size</label>
+            <input class="size border rounded-lg p-2 w-full mt-1" readonly>
+          </div>
+          <div>
+            <label class="text-xs text-gray-500 block">Surface</label>
+            <input class="surface border rounded-lg p-2 w-full mt-1" readonly>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-3 gap-2 mt-3">
+          <div>
+            <label class="text-xs text-gray-500 block">MRP</label>
+            <input class="mrp border rounded-lg p-2 w-full mt-1" type="number" step="0.01">
+          </div>
+          <div>
+            <label class="text-xs text-gray-500 block">Qty</label>
+            <input class="qty border rounded-lg p-2 w-full mt-1" type="number" step="0.01">
+          </div>
+          <div>
+            <label class="text-xs text-gray-500 block">Disc %</label>
+            <input class="disc border rounded-lg p-2 w-full mt-1" type="number" step="0.01">
+          </div>
+        </div>
+
+        <label class="text-xs text-gray-500 mt-3 block">Comment</label>
+        <input class="comment border rounded-lg p-2 w-full mt-1" placeholder="Optional">
+
+        <div class="flex justify-between text-sm mt-3">
+          <div>Line Total</div>
+          <div class="lineTotal font-bold">0.00</div>
+        </div>
+      `;
+
+      document.getElementById("items").appendChild(wrap);
+
+      // listeners
+      wrap.querySelector(".code").addEventListener("change", () => fillFromRaw(wrap));
+      wrap.querySelectorAll(".mrp,.qty,.disc").forEach(el => el.addEventListener("input", () => calcLine(wrap)));
+    }
+
+    function removeItem(id) {
+      const el = [...document.querySelectorAll("#items > div")].find(x => x.dataset.id === String(id));
+      if (el) el.remove();
+      calcTotal();
+    }
+
+    function fillFromRaw(wrap) {
+      const code = (wrap.querySelector(".code").value || "").trim();
+      const m = rawCache.find(x => String(x.name || "").toLowerCase() === code.toLowerCase());
+      if (!m) return;
+      wrap.querySelector(".size").value = m.size || "";
+      wrap.querySelector(".surface").value = m.surface || "";
+      wrap.querySelector(".mrp").value = Number(m.mrp || 0) || 0;
+      calcLine(wrap);
+    }
+
+    function calcLine(wrap) {
+      const mrp = Number(wrap.querySelector(".mrp").value || 0) || 0;
+      const qty = Number(wrap.querySelector(".qty").value || 0) || 0;
+      const disc = Number(wrap.querySelector(".disc").value || 0) || 0;
+
+      const safeDisc = Math.min(100, Math.max(0, disc));
+      const discounted = Math.max(0, mrp - (mrp * safeDisc / 100));
+      const total = qty * discounted;
+
+      wrap.querySelector(".lineTotal").textContent = money(total);
+      calcTotal();
+    }
+
+    function calcTotal() {
+      let sum = 0;
+      document.querySelectorAll("#items .lineTotal").forEach(el => sum += Number(el.textContent || 0) || 0);
+      document.getElementById("totalAmount").textContent = money(sum);
+      recalcFinal();
+    }
+
+    function recalcFinal() {
+      const total = Number(document.getElementById("totalAmount").textContent || 0) || 0;
+      const type = document.getElementById("discountType").value;
+      const disc = Number(document.getElementById("specialDiscount").value || 0) || 0;
+      let final = total;
+      if (type === "flat") final = total - disc;
+      else final = total - (total * disc / 100);
+      final = Math.max(0, final);
+      document.getElementById("finalAmount").textContent = money(final);
+    }
+
+    async function saveQuotation() {
+      const msg = document.getElementById("msg");
+      msg.textContent = "";
+      msg.className = "text-sm mt-2";
+
+      const quotationNo = document.getElementById("quotationNo").value.trim();
+      const date = document.getElementById("quotationDate").value;
+      const customerName = document.getElementById("customerName").value.trim();
+      const mobile = document.getElementById("customerMobile").value.trim();
+      const town = document.getElementById("town").value.trim();
+
+      if (!quotationNo || !date || !customerName) {
+        msg.textContent = "Fill Quotation No, Date, Customer Name";
+        msg.className = "text-sm mt-2 text-red-600";
+        return;
+      }
+
+      const itemEls = [...document.querySelectorAll("#items > div")];
+      const items = itemEls.map((wrap, idx) => {
+        const productCode = (wrap.querySelector(".code").value || "").trim();
+        const size = (wrap.querySelector(".size").value || "").trim();
+        const surface = (wrap.querySelector(".surface").value || "").trim();
+        const mrp = Number(wrap.querySelector(".mrp").value || 0) || 0;
+        const qty = Number(wrap.querySelector(".qty").value || 0) || 0;
+        const disc = Number(wrap.querySelector(".disc").value || 0) || 0;
+
+        const safeDisc = Math.min(100, Math.max(0, disc));
+        const discountedPrice = Math.max(0, mrp - (mrp * safeDisc / 100));
+        const lineTotal = qty * discountedPrice;
+        const comment = (wrap.querySelector(".comment").value || "").trim();
+
+        return {
+          srNo: idx + 1,
+          productCode,
+          size,
+          surface,
+          mrp,
+          qty,
+          disc: safeDisc,
+          discountedPrice,
+          lineTotal,
+          comment
+        };
+      }).filter(it => it.productCode);
+
+      if (items.length === 0) {
+        msg.textContent = "Add at least 1 item";
+        msg.className = "text-sm mt-2 text-red-600";
+        return;
+      }
+
+      // Simple validation
+      for (let i = 0; i < items.length; i++) {
+        if (!(items[i].qty > 0)) {
+          msg.textContent = "Qty must be > 0 in row " + (i + 1);
+          msg.className = "text-sm mt-2 text-red-600";
+          return;
+        }
+      }
+
+      const totalAmount = Number(document.getElementById("totalAmount").textContent || 0) || 0;
+      const finalAmount = Number(document.getElementById("finalAmount").textContent || 0) || 0;
+
+      const payload = {
+        quotationNo,
+        date,
+        customerName,
+        mobile,
+        town,
+        reference: "",
+        salesperson: "",
+        salesMobile: "",
+        totalAmount,
+        specialDiscountType: document.getElementById("discountType").value,
+        specialDiscountValue: Number(document.getElementById("specialDiscount").value || 0) || 0,
+        finalAmount,
+        status: "Draft",
+        items
+      };
+
+      const r = await apiPost({ action: "saveQuotation", payload });
+
+      if (!r.ok) {
+        msg.textContent = "Error: " + (r.error || "Failed");
+        msg.className = "text-sm mt-2 text-red-600";
+        return;
+      }
+
+      msg.textContent = "Saved";
+      msg.className = "text-sm mt-2 text-green-700";
+    }
+
+    init();
+  </script>
+</body>
+</html>
